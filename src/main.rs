@@ -16,7 +16,19 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[poise::command(slash_command, prefix_command)]
-async fn end(ctx: Context<'_>) -> Result<(), Error> {
+async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
+    let event = {
+        let mut lock = match ctx.data().event.lock() {
+            Ok(x) => x,
+            Err(_) => return Ok(()),
+        };
+        let event = lock.clone();
+        *lock = None;
+        event
+    };
+    if let Some(event) = event {
+        ctx.say(format!("{}\nThe event has been canceled", event.members.iter().fold(String::new(), |sum, curr| format!("{sum}\n- {curr}")))).await?;
+    }
     Ok(())
 }
 
@@ -233,7 +245,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![create(), info(), add(), join(), leave(), remove(), update()],
+            commands: vec![create(), info(), add(), join(), leave(), remove(), update(), cancel()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
