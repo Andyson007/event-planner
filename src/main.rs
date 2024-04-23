@@ -1,3 +1,4 @@
+use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
 use std::{
     env,
@@ -17,7 +18,7 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 #[poise::command(slash_command, prefix_command)]
 async fn create(
     ctx: Context<'_>,
-    #[description = " title for the event"] title: String,
+    #[description = "A title for the event"] title: String,
     #[description = "A description for the event"] description: String,
     #[description = "Format: ISO 8601"] start: String,
     #[description = "Format: ISO 8601"] end: Option<String>,
@@ -59,6 +60,70 @@ async fn create(
 }
 
 #[poise::command(slash_command, prefix_command)]
+async fn update(
+    ctx: Context<'_>,
+    #[description = "A title for the event"] title: Option<String>,
+    #[description = "A description for the event"] description: Option<String>,
+    #[description = "Format: ISO 8601"] start: Option<String>,
+    #[description = "Format: ISO 8601 (type None to remove)"] end: Option<String>,
+    #[description = "The location where everyone should meet at"] location: Option<String>,
+    #[description = "Who hosts (used to inform everyone when that person changes plans)"]
+    host: Option<serenity::User>,
+) -> Result<(), Error> {
+    {
+        {
+            let mut lock = match ctx.data().event.lock() {
+                Ok(x) => x,
+                Err(_) => return Ok(()),
+            };
+            for i in lock.iter_mut() {
+                if let Some(ref title) = title {
+                    i.title = title.clone();
+                }
+                if let Some(ref description) = description {
+                    i.description = description.clone();
+                }
+                if let Some(ref start) = start {
+                    let Some(start) = Timestamp::parse(start) else {
+                        break;
+                    };
+                    i.start = start;
+                }
+                if let Some(ref end) = end {
+                    if end == "None" {
+                        i.end = None
+                    } else {
+                        let Some(end) = Timestamp::parse(end) else {
+                            break;
+                        };
+                        i.end = Some(end);
+                    }
+                }
+                if let Some(ref location) = location {
+                    i.location = location.clone();
+                }
+                if let Some(ref host) = host {
+                    i.host = host.clone();
+                }
+            }
+        }
+        let lock = (match ctx.data().event.lock() {
+            Ok(x) => x,
+            Err(_) => return Ok(()),
+        })
+        .clone();
+        if let Some(x) = lock {
+            let a = ctx.say("tmp").await?;
+            a.edit(ctx, poise::CreateReply::default().content(format!("{}", x)))
+                .await?;
+        } else {
+            ctx.reply("No event".to_string()).await?;
+        }
+        Ok(())
+    }
+}
+
+#[poise::command(slash_command, prefix_command)]
 async fn info(ctx: Context<'_>) -> Result<(), Error> {
     let lock = (match ctx.data().event.lock() {
         Ok(x) => x,
@@ -66,7 +131,73 @@ async fn info(ctx: Context<'_>) -> Result<(), Error> {
     })
     .clone();
     if let Some(x) = lock {
-        ctx.reply(format!("{}", x)).await?;
+        let a = ctx.say("tmp").await?;
+        a.edit(ctx, poise::CreateReply::default().content(format!("{}", x)))
+            .await?;
+    } else {
+        ctx.reply("No event".to_string()).await?;
+    }
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
+async fn join(ctx: Context<'_>) -> Result<(), Error> {
+    let joined = {
+        let mut lock = match ctx.data().event.lock() {
+            Ok(x) => x,
+            Err(_) => return Ok(()),
+        };
+        for i in lock.iter_mut() {
+            i.addmember(ctx.author());
+        }
+        lock.is_some()
+    };
+    if joined {
+        ctx.say("You joined!").await?;
+    } else {
+        ctx.reply("No event".to_string()).await?;
+    }
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
+async fn leave(ctx: Context<'_>) -> Result<(), Error> {
+    let joined = {
+        let mut lock = match ctx.data().event.lock() {
+            Ok(x) => x,
+            Err(_) => return Ok(()),
+        };
+        for i in lock.iter_mut() {
+            i.removemember(ctx.author());
+        }
+        lock.is_some()
+    };
+    if joined {
+        ctx.say("You left :(").await?;
+    } else {
+        ctx.reply("No event".to_string()).await?;
+    }
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
+async fn remove(
+    ctx: Context<'_>,
+    #[description = "User to remove from event"] user: serenity::User,
+) -> Result<(), Error> {
+    let joined = {
+        let mut lock = match ctx.data().event.lock() {
+            Ok(x) => x,
+            Err(_) => return Ok(()),
+        };
+        for i in lock.iter_mut() {
+            i.removemember(&user);
+        }
+        lock.is_some()
+    };
+    if joined {
+        ctx.say(format!("{user} got removed from the event"))
+            .await?;
     } else {
         ctx.reply("No event".to_string()).await?;
     }
@@ -87,7 +218,7 @@ async fn add(
             i.addmember(&user);
         }
     }
-    ctx.reply("done").await?;
+    ctx.reply(format!("Added {user}")).await?;
     Ok(())
 }
 
@@ -99,7 +230,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![create(), info(), add()],
+            commands: vec![create(), info(), add(), join(), leave(), remove(), update()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {

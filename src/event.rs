@@ -1,18 +1,18 @@
 use std::{collections::HashSet, fmt::Display};
 
+use ::serenity::all::User;
 use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
-use ::serenity::all::User;
 
 #[derive(Debug, Clone)]
 pub struct Event {
-    start: Timestamp,
-    end: Option<Timestamp>,
-    members: HashSet<serenity::User>,
-    location: String,
-    host: serenity::User,
-    title: String,
-    description: String,
+    pub start: Timestamp,
+    pub end: Option<Timestamp>,
+    pub members: HashSet<serenity::User>,
+    pub location: String,
+    pub host: serenity::User,
+    pub title: String,
+    pub description: String,
 }
 
 #[derive(Debug)]
@@ -57,21 +57,26 @@ impl Event {
     pub fn addmember(&mut self, user: &User) {
         self.members.insert(user.clone());
     }
+
+    pub fn removemember(&mut self, user: &User) {
+        self.members.remove(user);
+    }
 }
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "# {}\n## {}\n## Starts: {:?}\n{}\n**Location**: {}\n**Members**: {}",
+            "# {}\n## {}\n**Starts**: {:?}\n{}\n**Location**: {}\n**Members** ({}): {}",
             self.title,
             self.description,
-            self.start.to_iso_week_date(),
+            timeformat(self.start),
             match self.end {
                 None => "".to_string(),
-                Some(x) => format!("## Ends: {x}"),
+                Some(x) => format!("**Ends**: {}", timeformat(x)),
             },
             self.location,
+            self.members.len(),
             self.members
                 .iter()
                 .map(|x| {
@@ -84,4 +89,15 @@ impl Display for Event {
                 .fold(String::new(), |sum, curr| format! {"{sum}\n- {curr}"})
         )
     }
+}
+
+fn timeformat(time: Timestamp) -> String {
+    format!(
+        "{} the {}th of {} ({}) at {}",
+        time.weekday(),
+        time.day(),
+        time.month(),
+        time.year(),
+        time.time()
+    )
 }
