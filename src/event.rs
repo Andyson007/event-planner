@@ -48,9 +48,12 @@ impl Event {
             description,
             start,
             end,
+            members: match host.clone() {
+                Some(x) => HashSet::from([x]),
+                None => HashSet::new(),
+            },
             host,
             location,
-            members: HashSet::new(),
         })
     }
 
@@ -61,13 +64,26 @@ impl Event {
     pub fn removemember(&mut self, user: &User) {
         self.members.remove(user);
     }
+
+    pub fn getmembers(&self) -> String {
+        self.members
+            .iter()
+            .map(|x| {
+                if Some(x) == self.host.as_ref() {
+                    format!("{x} (host)")
+                } else {
+                    format!("{x}")
+                }
+            })
+            .fold(String::new(), |sum, curr| format! {"{sum}\n- {curr}"})
+    }
 }
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "# {}\n## {}\n**Starts**: {:?}\n{}\n**Location**: {} ({:?})\n**Members** ({}): {}",
+            "# {}\n## {}\n**Starts**: {:?}\n{}\n**Location**: {} {}\n**Members** ({}): {}",
             self.title,
             self.description,
             timeformat(self.start),
@@ -76,18 +92,13 @@ impl Display for Event {
                 Some(x) => format!("**Ends**: {}", timeformat(x)),
             },
             self.location,
-            self.host,
+            if let Some(x) = &self.host {
+                format!("({x})")
+            } else {
+                "".to_string()
+            },
             self.members.len(),
-            self.members
-                .iter()
-                .map(|x| {
-                    if Some(x) == self.host.as_ref() {
-                        format!("**{x}**")
-                    } else {
-                        format!("{x}")
-                    }
-                })
-                .fold(String::new(), |sum, curr| format! {"{sum}\n- {curr}"})
+            self.getmembers()
         )
     }
 }

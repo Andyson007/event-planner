@@ -30,10 +30,7 @@ async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
     if let Some(event) = event {
         ctx.say(format!(
             "{}\nThe event has been canceled",
-            event
-                .members
-                .iter()
-                .fold(String::new(), |sum, curr| format!("{sum}\n- {curr}"))
+            event.getmembers()
         ))
         .await?;
     }
@@ -61,7 +58,7 @@ async fn create(
             return Ok(());
         }
     };
-    let response = format!("{:#?}", event);
+    let response = format!("{}", event);
     let failed;
     if let Ok(mut lock) = ctx.data().event.lock() {
         *lock = Some(event);
@@ -76,6 +73,7 @@ async fn create(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[poise::command(slash_command, prefix_command)]
 async fn update(
     ctx: Context<'_>,
@@ -84,9 +82,8 @@ async fn update(
     #[description = "Format: ISO 8601"] start: Option<String>,
     #[description = "Format: ISO 8601 (type None to remove)"] end: Option<String>,
     #[description = "The location where everyone should meet at"] location: Option<String>,
-    #[description = "Who hosts (used to inform everyone when that person changes plans)\nYou can remove by setting removehost "]
-    host: Option<serenity::User>,
-    #[description = "This removes the host"] removehost: bool,
+    #[description = "You can remove by setting removehost "] host: Option<serenity::User>,
+    #[description = "This removes the host"] removehost: Option<bool>,
 ) -> Result<(), Error> {
     {
         let mut lock = match ctx.data().event.lock() {
@@ -119,7 +116,7 @@ async fn update(
             if let Some(ref location) = location {
                 i.location = location.clone();
             }
-            if removehost {
+            if removehost.is_some_and(|x| x) {
                 i.host = None;
             } else if let Some(ref host) = host {
                 i.host = Some(host.clone());
@@ -180,7 +177,7 @@ async fn join(ctx: Context<'_>) -> Result<(), Error> {
 
 #[poise::command(slash_command, prefix_command)]
 async fn leave(ctx: Context<'_>) -> Result<(), Error> {
-    let joined = {
+    {
         let mut lock = match ctx.data().event.lock() {
             Ok(x) => x,
             Err(_) => return Ok(()),
@@ -188,10 +185,22 @@ async fn leave(ctx: Context<'_>) -> Result<(), Error> {
         for i in lock.iter_mut() {
             i.removemember(ctx.author());
         }
-        lock.is_some()
-    };
-    if joined {
-        ctx.say("You left :(").await?;
+    }
+    let lock = match ctx.data().event.lock() {
+        Ok(x) => x,
+        Err(_) => return Ok(()),
+    }
+    .clone();
+    if let Some(x) = lock {
+        if Some(ctx.author()) == x.host.as_ref() {
+            ctx.say(format!(
+                "The host left!\n{}\n## Figure something out!",
+                x.getmembers()
+            ))
+            .await?;
+        } else {
+            ctx.say("You left :(").await?;
+        }
     } else {
         ctx.reply("No event".to_string()).await?;
     }
@@ -203,7 +212,7 @@ async fn remove(
     ctx: Context<'_>,
     #[description = "User to remove from event"] user: serenity::User,
 ) -> Result<(), Error> {
-    let joined = {
+    {
         let mut lock = match ctx.data().event.lock() {
             Ok(x) => x,
             Err(_) => return Ok(()),
@@ -211,11 +220,22 @@ async fn remove(
         for i in lock.iter_mut() {
             i.removemember(&user);
         }
-        lock.is_some()
-    };
-    if joined {
-        ctx.say(format!("{user} got removed from the event"))
+    }
+    let lock = match ctx.data().event.lock() {
+        Ok(x) => x,
+        Err(_) => return Ok(()),
+    }
+    .clone();
+    if let Some(x) = lock {
+        if Some(user) == x.host {
+            ctx.say(format!(
+                "The host left!\n{}\n## Figure something out!",
+                x.getmembers()
+            ))
             .await?;
+        } else {
+            ctx.say("You left :(").await?;
+        }
     } else {
         ctx.reply("No event".to_string()).await?;
     }
