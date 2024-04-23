@@ -16,6 +16,11 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[poise::command(slash_command, prefix_command)]
+async fn end(ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
 async fn create(
     ctx: Context<'_>,
     #[description = "A title for the event"] title: String,
@@ -71,56 +76,54 @@ async fn update(
     host: Option<serenity::User>,
 ) -> Result<(), Error> {
     {
-        {
-            let mut lock = match ctx.data().event.lock() {
-                Ok(x) => x,
-                Err(_) => return Ok(()),
-            };
-            for i in lock.iter_mut() {
-                if let Some(ref title) = title {
-                    i.title = title.clone();
-                }
-                if let Some(ref description) = description {
-                    i.description = description.clone();
-                }
-                if let Some(ref start) = start {
-                    let Some(start) = Timestamp::parse(start) else {
-                        break;
-                    };
-                    i.start = start;
-                }
-                if let Some(ref end) = end {
-                    if end == "None" {
-                        i.end = None
-                    } else {
-                        let Some(end) = Timestamp::parse(end) else {
-                            break;
-                        };
-                        i.end = Some(end);
-                    }
-                }
-                if let Some(ref location) = location {
-                    i.location = location.clone();
-                }
-                if let Some(ref host) = host {
-                    i.host = host.clone();
-                }
-            }
-        }
-        let lock = (match ctx.data().event.lock() {
+        let mut lock = match ctx.data().event.lock() {
             Ok(x) => x,
             Err(_) => return Ok(()),
-        })
-        .clone();
-        if let Some(x) = lock {
-            let a = ctx.say("tmp").await?;
-            a.edit(ctx, poise::CreateReply::default().content(format!("{}", x)))
-                .await?;
-        } else {
-            ctx.reply("No event".to_string()).await?;
+        };
+        for i in lock.iter_mut() {
+            if let Some(ref title) = title {
+                i.title = title.clone();
+            }
+            if let Some(ref description) = description {
+                i.description = description.clone();
+            }
+            if let Some(ref start) = start {
+                let Some(start) = Timestamp::parse(start) else {
+                    break;
+                };
+                i.start = start;
+            }
+            if let Some(ref end) = end {
+                if end == "None" {
+                    i.end = None
+                } else {
+                    let Some(end) = Timestamp::parse(end) else {
+                        break;
+                    };
+                    i.end = Some(end);
+                }
+            }
+            if let Some(ref location) = location {
+                i.location = location.clone();
+            }
+            if let Some(ref host) = host {
+                i.host = host.clone();
+            }
         }
-        Ok(())
     }
+    let lock = (match ctx.data().event.lock() {
+        Ok(x) => x,
+        Err(_) => return Ok(()),
+    })
+    .clone();
+    if let Some(x) = lock {
+        let a = ctx.say("tmp").await?;
+        a.edit(ctx, poise::CreateReply::default().content(format!("{}", x)))
+            .await?;
+    } else {
+        ctx.reply("No event".to_string()).await?;
+    }
+    Ok(())
 }
 
 #[poise::command(slash_command, prefix_command)]
