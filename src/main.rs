@@ -17,7 +17,7 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 #[poise::command(slash_command, prefix_command)]
 async fn create(
     ctx: Context<'_>,
-    #[description = "A title for the event"] title: String,
+    #[description = " title for the event"] title: String,
     #[description = "A description for the event"] description: String,
     #[description = "Format: ISO 8601"] start: String,
     #[description = "Format: ISO 8601"] end: Option<String>,
@@ -68,8 +68,26 @@ async fn info(ctx: Context<'_>) -> Result<(), Error> {
     if let Some(x) = lock {
         ctx.reply(format!("{}", x)).await?;
     } else {
-        ctx.reply(format!("No event")).await?;
+        ctx.reply("No event".to_string()).await?;
     }
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
+async fn add(
+    ctx: Context<'_>,
+    #[description = "Who are you adding?"] user: serenity::User,
+) -> Result<(), Error> {
+    {
+        let mut lock = match ctx.data().event.lock() {
+            Ok(x) => x,
+            Err(_) => return Ok(()),
+        };
+        for i in lock.iter_mut() {
+            i.addmember(&user);
+        }
+    }
+    ctx.reply("done").await?;
     Ok(())
 }
 
@@ -81,7 +99,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![create(), info()],
+            commands: vec![create(), info(), add()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {

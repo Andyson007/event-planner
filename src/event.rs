@@ -2,6 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
+use ::serenity::all::User;
 
 #[derive(Debug, Clone)]
 pub struct Event {
@@ -52,19 +53,23 @@ impl Event {
             members: HashSet::new(),
         })
     }
+
+    pub fn addmember(&mut self, user: &User) {
+        self.members.insert(user.clone());
+    }
 }
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "# {}\n## {}\n## Starts: {}\n{}\n### Location: {}\n### Members: {}",
+            "# {}\n## {}\n## Starts: {:?}\n{}\n**Location**: {}\n**Members**: {}",
             self.title,
             self.description,
-            self.start,
+            self.start.to_iso_week_date(),
             match self.end {
                 None => "".to_string(),
-                Some(x) => format!("Ends: {x}")
+                Some(x) => format!("## Ends: {x}"),
             },
             self.location,
             self.members
@@ -76,8 +81,7 @@ impl Display for Event {
                         format!("{x}")
                     }
                 })
-                .map(|x| format!("\n- {x}"))
-                .collect::<String>()
+                .fold(String::new(), |sum, curr| format! {"{sum}\n- {curr}"})
         )
     }
 }
