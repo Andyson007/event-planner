@@ -10,7 +10,7 @@ pub struct Event {
     pub end: Option<Timestamp>,
     pub members: HashSet<serenity::User>,
     pub location: String,
-    pub host: serenity::User,
+    pub host: Option<serenity::User>,
     pub title: String,
     pub description: String,
 }
@@ -27,7 +27,7 @@ impl Event {
         description: String,
         start: String,
         end: Option<String>,
-        host: serenity::User,
+        host: Option<serenity::User>,
         location: String,
     ) -> Result<Self, Error> {
         let Some(start) = Timestamp::parse(&start) else {
@@ -67,7 +67,7 @@ impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "# {}\n## {}\n**Starts**: {:?}\n{}\n**Location**: {}\n**Members** ({}): {}",
+            "# {}\n## {}\n**Starts**: {:?}\n{}\n**Location**: {} ({:?})\n**Members** ({}): {}",
             self.title,
             self.description,
             timeformat(self.start),
@@ -76,11 +76,12 @@ impl Display for Event {
                 Some(x) => format!("**Ends**: {}", timeformat(x)),
             },
             self.location,
+            self.host,
             self.members.len(),
             self.members
                 .iter()
                 .map(|x| {
-                    if *x == self.host {
+                    if Some(x) == self.host.as_ref() {
                         format!("**{x}**")
                     } else {
                         format!("{x}")

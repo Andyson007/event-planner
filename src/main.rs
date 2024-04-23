@@ -1,5 +1,6 @@
 use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
+
 use std::{
     env,
     sync::{Arc, Mutex},
@@ -27,7 +28,14 @@ async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
         event
     };
     if let Some(event) = event {
-        ctx.say(format!("{}\nThe event has been canceled", event.members.iter().fold(String::new(), |sum, curr| format!("{sum}\n- {curr}")))).await?;
+        ctx.say(format!(
+            "{}\nThe event has been canceled",
+            event
+                .members
+                .iter()
+                .fold(String::new(), |sum, curr| format!("{sum}\n- {curr}"))
+        ))
+        .await?;
     }
     Ok(())
 }
@@ -43,15 +51,7 @@ async fn create(
     #[description = "Who hosts (used to inform everyone when that person changes plans)"]
     host: Option<serenity::User>,
 ) -> Result<(), Error> {
-    let u = ctx.author();
-    let event = match Event::new(
-        title,
-        description,
-        start,
-        end,
-        host.unwrap_or(u.clone()),
-        location,
-    ) {
+    let event = match Event::new(title, description, start, end, host, location) {
         Ok(x) => x,
         Err(x) => {
             match x {
@@ -84,8 +84,9 @@ async fn update(
     #[description = "Format: ISO 8601"] start: Option<String>,
     #[description = "Format: ISO 8601 (type None to remove)"] end: Option<String>,
     #[description = "The location where everyone should meet at"] location: Option<String>,
-    #[description = "Who hosts (used to inform everyone when that person changes plans)"]
+    #[description = "Who hosts (used to inform everyone when that person changes plans)\nYou can remove by setting removehost "]
     host: Option<serenity::User>,
+    #[description = "This removes the host"] removehost: bool,
 ) -> Result<(), Error> {
     {
         let mut lock = match ctx.data().event.lock() {
@@ -118,8 +119,10 @@ async fn update(
             if let Some(ref location) = location {
                 i.location = location.clone();
             }
-            if let Some(ref host) = host {
-                i.host = host.clone();
+            if removehost {
+                i.host = None;
+            } else if let Some(ref host) = host {
+                i.host = Some(host.clone());
             }
         }
     }
@@ -245,7 +248,16 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![create(), info(), add(), join(), leave(), remove(), update(), cancel()],
+            commands: vec![
+                create(),
+                info(),
+                add(),
+                join(),
+                leave(),
+                remove(),
+                update(),
+                cancel(),
+            ],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
