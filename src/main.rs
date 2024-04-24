@@ -1,3 +1,4 @@
+use ::serenity::all::RoleId;
 use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
 
@@ -12,12 +13,32 @@ use event::Event;
 
 struct Data {
     event: Arc<Mutex<Option<Event>>>,
+    trusted_role: Arc<Mutex<Option<RoleId>>>,
 } // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[poise::command(slash_command, prefix_command)]
 async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
+    let future = if let Ok(x) = ctx.data().trusted_role.lock() {
+        if let Some(x) = *x {
+            Some(
+                ctx.author()
+                    .has_role(ctx.http(), ctx.guild_id().unwrap(), x),
+            )
+        } else {
+            return Ok(());
+        }
+    } else {
+        None
+    };
+    let isprivileged = match future {
+        Some(x) => x.await.is_ok_and(|x| x),
+        None => false,
+    };
+    if !isprivileged {
+        ctx.say("You are unauthorized to do this action").await?;
+    }
     let event = {
         let mut lock = match ctx.data().event.lock() {
             Ok(x) => x,
@@ -33,6 +54,8 @@ async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
             event.getmembers()
         ))
         .await?;
+    } else {
+        ctx.say("There is no event to cancel :(").await?;
     }
     Ok(())
 }
@@ -212,6 +235,25 @@ async fn remove(
     ctx: Context<'_>,
     #[description = "User to remove from event"] user: serenity::User,
 ) -> Result<(), Error> {
+    let future = if let Ok(x) = ctx.data().trusted_role.lock() {
+        if let Some(x) = *x {
+            Some(
+                ctx.author()
+                    .has_role(ctx.http(), ctx.guild_id().unwrap(), x),
+            )
+        } else {
+            return Ok(());
+        }
+    } else {
+        None
+    };
+    let isprivileged = match future {
+        Some(x) => x.await.is_ok_and(|x| x),
+        None => false,
+    };
+    if !isprivileged {
+        ctx.say("You are unauthorized to do this action").await?;
+    }
     {
         let mut lock = match ctx.data().event.lock() {
             Ok(x) => x,
@@ -285,6 +327,7 @@ async fn main() {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     event: Arc::new(Mutex::new(None)),
+                    trusted_role: Arc::new(Mutex::new(Some(RoleId::new(1232615009117409350)))),
                 })
             })
         })
