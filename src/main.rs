@@ -2,11 +2,11 @@ use ::serenity::all::RoleId;
 use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};
-use std::fs::{File, OpenOptions};
 
-use std::io::{BufWriter, Write};
 use std::{
     env,
+    fs::{File, OpenOptions},
+    io::{BufWriter, Write},
     sync::{Arc, Mutex},
 };
 
