@@ -43,19 +43,28 @@ async fn set_trusted_role(ctx: Context<'_>, role: Option<serenity::Role>) -> Res
 
 #[poise::command(slash_command, prefix_command)]
 async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
-    let future = if let Ok(x) = ctx.data().trusted_role.lock() {
-        x.map(|x| {
-            ctx.author()
-                .has_role(ctx.http(), ctx.guild_id().unwrap(), x)
-        })
-    } else {
-        None
+    let is_priviliged = {
+        let future = if let Ok(x) = ctx.data().trusted_role.lock() {
+            x.map(|x| {
+                ctx.author()
+                    .has_role(ctx.http(), ctx.guild_id().unwrap(), x)
+            })
+        } else {
+            None
+        };
+        match future {
+            Some(x) => x.await.is_ok_and(|x| x),
+            None => false,
+        }
     };
-    let isprivileged = match future {
-        Some(x) => x.await.is_ok_and(|x| x),
-        None => false,
+    let is_creator = {
+        if let Ok(x) = ctx.data().event.lock() {
+            x.as_ref().is_some_and(|x| ctx.author() == &x.creator)
+        } else {
+            false
+        }
     };
-    if !isprivileged {
+    if !is_priviliged && !is_creator {
         ctx.send(
             poise::CreateReply::default()
                 .content("You aren't priviliged")
@@ -96,7 +105,7 @@ async fn create(
     #[description = "Who hosts (used to inform everyone when that person changes plans)"]
     host: Option<serenity::User>,
 ) -> Result<(), Error> {
-    let event = match Event::new(title, description, start, end, host, location) {
+    let event = match Event::new(title, description, start, end, host, location, ctx.author()) {
         Ok(x) => x,
         Err(x) => {
             match x {
@@ -272,11 +281,11 @@ async fn remove(
     } else {
         None
     };
-    let isprivileged = match future {
+    let is_privileged = match future {
         Some(x) => x.await.is_ok_and(|x| x),
         None => false,
     };
-    if !isprivileged {
+    if !is_privileged {
         ctx.send(
             poise::CreateReply::default()
                 .content("You aren't priviliged")

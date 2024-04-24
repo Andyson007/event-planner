@@ -13,6 +13,7 @@ pub struct Event {
     pub host: Option<serenity::User>,
     pub title: String,
     pub description: String,
+    pub creator: serenity::User,
 }
 
 #[derive(Debug)]
@@ -29,6 +30,7 @@ impl Event {
         end: Option<String>,
         host: Option<serenity::User>,
         location: String,
+        creator: &serenity::User,
     ) -> Result<Self, Error> {
         let Some(start) = Timestamp::parse(&start) else {
             // ctx.reply("Bad format in start").await?;
@@ -44,6 +46,7 @@ impl Event {
             None => None,
         };
         Ok(Event {
+            creator: creator.clone(),
             title,
             description,
             start,
