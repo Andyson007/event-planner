@@ -226,26 +226,6 @@ async fn info(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 #[poise::command(slash_command, prefix_command)]
-async fn join(ctx: Context<'_>) -> Result<(), Error> {
-    let joined = {
-        let mut lock = match ctx.data().event.lock() {
-            Ok(x) => x,
-            Err(_) => return Ok(()),
-        };
-        for i in lock.iter_mut() {
-            i.addmember(ctx.author());
-        }
-        lock.is_some()
-    };
-    if joined {
-        ctx.say("You joined!").await?;
-    } else {
-        ctx.reply("No event".to_string()).await?;
-    }
-    Ok(())
-}
-
-#[poise::command(slash_command, prefix_command)]
 async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     {
         let mut lock = match ctx.data().event.lock() {
@@ -340,8 +320,9 @@ async fn remove(
 #[poise::command(slash_command, prefix_command)]
 async fn add(
     ctx: Context<'_>,
-    #[description = "Who are you adding?"] user: serenity::User,
+    #[description = "Who are you adding?"] user: Option<serenity::User>,
 ) -> Result<(), Error> {
+    let user = user.unwrap_or(ctx.author().clone());
     {
         let mut lock = match ctx.data().event.lock() {
             Ok(x) => x,
@@ -372,7 +353,6 @@ async fn main() {
                 create(),
                 info(),
                 add(),
-                join(),
                 leave(),
                 remove(),
                 update(),
