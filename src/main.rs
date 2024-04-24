@@ -1,9 +1,10 @@
 use ::serenity::all::RoleId;
 use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
-use serde::Deserialize;
-use std::fs::File;
+use serde::{Deserialize, Serialize};
+use std::fs::{File, OpenOptions};
 
+use std::io::{BufWriter, Write};
 use std::{
     env,
     sync::{Arc, Mutex},
@@ -15,7 +16,7 @@ use event::Event;
 
 struct Data {
     event: Arc<Mutex<Option<Event>>>,
-    trusted_role: Arc<Mutex<Option<RoleId>>>,
+    settings: Arc<Mutex<Settings>>,
 } // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -31,9 +32,19 @@ async fn set_trusted_role(ctx: Context<'_>, role: Option<serenity::Role>) -> Res
         .await?;
         return Ok(());
     }
-    if let Ok(mut x) = ctx.data().trusted_role.lock() {
-        *x = role.map(|x| x.id);
+    if let Ok(mut x) = ctx.data().settings.lock() {
+        x.trusted_role = role.map(|x| x.id);
+        let mut writer = BufWriter::new(
+            OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open("settings.json")
+                .unwrap(),
+        );
+        serde_json::to_writer_pretty(&mut writer, &*x).unwrap();
+        writer.flush().unwrap();
     }
+
     ctx.send(
         poise::CreateReply::default()
             .content("Success!")
@@ -46,8 +57,8 @@ async fn set_trusted_role(ctx: Context<'_>, role: Option<serenity::Role>) -> Res
 #[poise::command(slash_command, prefix_command)]
 async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
     let is_priviliged = {
-        let future = if let Ok(x) = ctx.data().trusted_role.lock() {
-            x.map(|x| {
+        let future = if let Ok(x) = ctx.data().settings.lock() {
+            x.trusted_role.map(|x| {
                 ctx.author()
                     .has_role(ctx.http(), ctx.guild_id().unwrap(), x)
             })
@@ -271,8 +282,8 @@ async fn remove(
     ctx: Context<'_>,
     #[description = "User to remove from event"] user: serenity::User,
 ) -> Result<(), Error> {
-    let future = if let Ok(x) = ctx.data().trusted_role.lock() {
-        if let Some(x) = *x {
+    let future = if let Ok(x) = ctx.data().settings.lock() {
+        if let Some(x) = x.trusted_role {
             Some(
                 ctx.author()
                     .has_role(ctx.http(), ctx.guild_id().unwrap(), x),
@@ -375,7 +386,7 @@ async fn main() {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     event: Arc::new(Mutex::new(None)),
-                    trusted_role: Arc::new(Mutex::new(settings.trusted_role.map(RoleId::new))),
+                    settings: Arc::new(Mutex::new(settings)),
                 })
             })
         })
@@ -388,7 +399,7 @@ async fn main() {
     client.start().await.unwrap();
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Settings {
-    trusted_role: Option<u64>,
+    trusted_role: Option<RoleId>,
 }
