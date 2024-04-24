@@ -19,16 +19,35 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[poise::command(slash_command, prefix_command)]
+async fn set_trusted_role(ctx: Context<'_>, role: Option<serenity::Role>) -> Result<(), Error> {
+    if ctx.guild().unwrap().owner_id != ctx.author().id {
+        ctx.send(
+            poise::CreateReply::default()
+                .content("You aren't priviliged")
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
+    }
+    if let Ok(mut x) = ctx.data().trusted_role.lock() {
+        *x = role.map(|x| x.id);
+    }
+    ctx.send(
+        poise::CreateReply::default()
+            .content("Success!")
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command)]
 async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
     let future = if let Ok(x) = ctx.data().trusted_role.lock() {
-        if let Some(x) = *x {
-            Some(
-                ctx.author()
-                    .has_role(ctx.http(), ctx.guild_id().unwrap(), x),
-            )
-        } else {
-            return Ok(());
-        }
+        x.map(|x| {
+            ctx.author()
+                .has_role(ctx.http(), ctx.guild_id().unwrap(), x)
+        })
     } else {
         None
     };
@@ -37,7 +56,13 @@ async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
         None => false,
     };
     if !isprivileged {
-        ctx.say("You are unauthorized to do this action").await?;
+        ctx.send(
+            poise::CreateReply::default()
+                .content("You aren't priviliged")
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
     }
     let event = {
         let mut lock = match ctx.data().event.lock() {
@@ -63,7 +88,7 @@ async fn cancel(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(slash_command, prefix_command)]
 async fn create(
     ctx: Context<'_>,
-    #[description = "A title for the event"] title: String,
+    #[description = "A Title for the event"] title: String,
     #[description = "A description for the event"] description: String,
     #[description = "Format: ISO 8601"] start: String,
     #[description = "Format: ISO 8601"] end: Option<String>,
@@ -252,7 +277,13 @@ async fn remove(
         None => false,
     };
     if !isprivileged {
-        ctx.say("You are unauthorized to do this action").await?;
+        ctx.send(
+            poise::CreateReply::default()
+                .content("You aren't priviliged")
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
     }
     {
         let mut lock = match ctx.data().event.lock() {
@@ -319,6 +350,7 @@ async fn main() {
                 remove(),
                 update(),
                 cancel(),
+                set_trusted_role(),
             ],
             ..Default::default()
         })
@@ -327,7 +359,7 @@ async fn main() {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     event: Arc::new(Mutex::new(None)),
-                    trusted_role: Arc::new(Mutex::new(Some(RoleId::new(1232615009117409350)))),
+                    trusted_role: Arc::new(Mutex::new(None)),
                 })
             })
         })
