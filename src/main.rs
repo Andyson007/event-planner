@@ -1,6 +1,8 @@
 use ::serenity::all::RoleId;
 use iso8601_timestamp::Timestamp;
 use poise::serenity_prelude as serenity;
+use serde::Deserialize;
+use std::fs::File;
 
 use std::{
     env,
@@ -348,6 +350,11 @@ async fn main() {
     let token = env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
     let intents = serenity::GatewayIntents::non_privileged();
 
+    let settings: Settings = serde_json::from_reader(
+        File::open("./settings.json").expect("Couldn't open file settings.json"),
+    )
+    .expect("Error reading json");
+
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
@@ -363,12 +370,12 @@ async fn main() {
             ],
             ..Default::default()
         })
-        .setup(|ctx, _ready, framework| {
+        .setup(move |ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     event: Arc::new(Mutex::new(None)),
-                    trusted_role: Arc::new(Mutex::new(None)),
+                    trusted_role: Arc::new(Mutex::new(settings.trusted_role.map(RoleId::new))),
                 })
             })
         })
@@ -379,4 +386,9 @@ async fn main() {
         .await
         .unwrap();
     client.start().await.unwrap();
+}
+
+#[derive(Deserialize)]
+struct Settings {
+    trusted_role: Option<u64>,
 }

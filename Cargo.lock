@@ -395,6 +395,8 @@ dependencies = [
  "dotenv",
  "iso8601-timestamp",
  "poise",
+ "serde",
+ "serde_json",
  "serenity",
  "tokio",
 ]
