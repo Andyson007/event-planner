@@ -17,21 +17,13 @@ use event::Event;
 struct Data {
     event: Arc<Mutex<Option<Event>>>,
     settings: Arc<Mutex<Settings>>,
-} // User data, which is stored and accessible in all command invocations
+}
+
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
-#[poise::command(slash_command, prefix_command)]
+#[poise::command(slash_command, prefix_command, owners_only)]
 async fn set_trusted_role(ctx: Context<'_>, role: Option<serenity::Role>) -> Result<(), Error> {
-    if ctx.guild().unwrap().owner_id != ctx.author().id {
-        ctx.send(
-            poise::CreateReply::default()
-                .content("You aren't priviliged")
-                .ephemeral(true),
-        )
-        .await?;
-        return Ok(());
-    }
     if let Ok(mut x) = ctx.data().settings.lock() {
         x.trusted_role = role.map(|x| x.id);
         let mut writer = BufWriter::new(
@@ -337,7 +329,7 @@ async fn add(
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     dotenv::dotenv().expect("Expected .env file");
     let token = env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
     let intents = serenity::GatewayIntents::non_privileged();
@@ -374,9 +366,9 @@ async fn main() {
 
     let mut client = serenity::ClientBuilder::new(token, intents)
         .framework(framework)
-        .await
-        .unwrap();
-    client.start().await.unwrap();
+        .await?;
+    client.start().await?;
+    Ok(())
 }
 
 #[derive(Deserialize, Serialize)]
