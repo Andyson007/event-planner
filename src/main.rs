@@ -1,5 +1,5 @@
 use ::serenity::all::RoleId;
-use iso8601_timestamp::Timestamp;
+use chrono::NaiveDateTime;
 use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +13,8 @@ use std::{
 mod event;
 
 use event::Event;
+
+use crate::event::TIMEFORMAT;
 
 struct Data {
     event: Arc<Mutex<Option<Event>>>,
@@ -104,8 +106,8 @@ async fn create(
     ctx: Context<'_>,
     #[description = "A Title for the event"] title: String,
     #[description = "A description for the event"] description: String,
-    #[description = "Format: ISO 8601"] start: String,
-    #[description = "Format: ISO 8601"] end: Option<String>,
+    #[description = "Format: %Y-%m-%d %H:%M"] start: String,
+    #[description = "Format: %Y-%m-%d %H:%M"] end: Option<String>,
     #[description = "The location where everyone should meet at"] location: String,
     #[description = "Who hosts (used to inform everyone when that person changes plans)"]
     host: Option<serenity::User>,
@@ -114,8 +116,8 @@ async fn create(
         Ok(x) => x,
         Err(x) => {
             match x {
-                event::Error::BadStart => drop(ctx.reply("Bad start").await?),
-                event::Error::BadEnd => drop(ctx.reply("Bad end").await?),
+                event::Error::BadStart(x) => drop(ctx.reply(format!("Bad start: {x}")).await?),
+                event::Error::BadEnd(x) => drop(ctx.reply(format!("Bad end: {x}")).await?),
             };
             return Ok(());
         }
@@ -160,19 +162,13 @@ async fn update(
                 i.description = description.clone();
             }
             if let Some(ref start) = start {
-                let Some(start) = Timestamp::parse(start) else {
-                    break;
-                };
-                i.start = start;
+                i.start = NaiveDateTime::parse_from_str(start, TIMEFORMAT)?;
             }
             if let Some(ref end) = end {
                 if end == "None" {
                     i.end = None
                 } else {
-                    let Some(end) = Timestamp::parse(end) else {
-                        break;
-                    };
-                    i.end = Some(end);
+                    i.end = Some(NaiveDateTime::parse_from_str(end, TIMEFORMAT)?);
                 }
             }
             if let Some(ref location) = location {

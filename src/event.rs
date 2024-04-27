@@ -1,13 +1,15 @@
 use std::{collections::HashSet, fmt::Display};
 
 use ::serenity::all::User;
-use iso8601_timestamp::Timestamp;
+use chrono::{NaiveDateTime, ParseError};
 use poise::serenity_prelude as serenity;
+
+pub const TIMEFORMAT: &str = "%Y-%m-%d %H:%M";
 
 #[derive(Debug, Clone)]
 pub struct Event {
-    pub start: Timestamp,
-    pub end: Option<Timestamp>,
+    pub start: NaiveDateTime,
+    pub end: Option<NaiveDateTime>,
     pub members: HashSet<serenity::User>,
     pub location: String,
     pub host: Option<serenity::User>,
@@ -18,8 +20,8 @@ pub struct Event {
 
 #[derive(Debug)]
 pub enum Error {
-    BadStart,
-    BadEnd,
+    BadStart(ParseError),
+    BadEnd(ParseError),
 }
 
 impl Event {
@@ -32,17 +34,12 @@ impl Event {
         location: String,
         creator: &serenity::User,
     ) -> Result<Self, Error> {
-        let Some(start) = Timestamp::parse(&start) else {
-            // ctx.reply("Bad format in start").await?;
-            return Err(Error::BadStart);
-        };
+        let start = NaiveDateTime::parse_from_str(&start, TIMEFORMAT).map_err(Error::BadStart)?;
         let end = match end {
-            Some(x) => match Timestamp::parse(&x) {
-                None => {
-                    return Err(Error::BadEnd);
-                }
-                x => x,
-            },
+            Some(x) => {
+                Some(NaiveDateTime::parse_from_str(&x, TIMEFORMAT).map_err(Error::BadEnd)?)
+            }
+
             None => None,
         };
         Ok(Event {
@@ -89,10 +86,10 @@ impl Display for Event {
             "# {}\n## {}\n**Starts**: {:?}\n{}\n**Location**: {} {}\n**Members** ({}): {}",
             self.title,
             self.description,
-            timeformat(self.start),
+            self.start,
             match self.end {
                 None => "".to_string(),
-                Some(x) => format!("**Ends**: {}", timeformat(x)),
+                Some(x) => format!("**Ends**: {}", x),
             },
             self.location,
             if let Some(x) = &self.host {
@@ -104,15 +101,4 @@ impl Display for Event {
             self.getmembers()
         )
     }
-}
-
-fn timeformat(time: Timestamp) -> String {
-    format!(
-        "{} the {}th of {} ({}) at {}",
-        time.weekday(),
-        time.day(),
-        time.month(),
-        time.year(),
-        time.time()
-    )
 }
