@@ -1,15 +1,15 @@
 use std::{collections::HashSet, fmt::Display};
 
 use ::serenity::all::User;
-use chrono::{NaiveDateTime, ParseError};
+use chrono::{offset::LocalResult, DateTime, Local, NaiveDateTime, ParseError, TimeZone};
 use poise::serenity_prelude as serenity;
 
 pub const TIMEFORMAT: &str = "%Y-%m-%d %H:%M";
 
 #[derive(Debug, Clone)]
 pub struct Event {
-    pub start: NaiveDateTime,
-    pub end: Option<NaiveDateTime>,
+    pub start: DateTime<Local>,
+    pub end: Option<DateTime<Local>>,
     pub members: HashSet<serenity::User>,
     pub location: String,
     pub host: Option<serenity::User>,
@@ -18,10 +18,14 @@ pub struct Event {
     pub creator: serenity::User,
 }
 
+// This hould really have start, end
+// with each of them having fields from a 
+// different enum
 #[derive(Debug)]
 pub enum Error {
     BadStart(ParseError),
     BadEnd(ParseError),
+    Ambiguous,
 }
 
 impl Event {
@@ -34,14 +38,25 @@ impl Event {
         location: String,
         creator: &serenity::User,
     ) -> Result<Self, Error> {
-        let start = NaiveDateTime::parse_from_str(&start, TIMEFORMAT).map_err(Error::BadStart)?;
+        let naivestart =
+            NaiveDateTime::parse_from_str(&start, TIMEFORMAT).map_err(Error::BadStart)?;
+        let LocalResult::Single(start) = Local.from_local_datetime(&naivestart) else {
+            return Err(Error::Ambiguous);
+        };
+        // DateTime::<Local>::from_naive_utc_and_offset(naivestart, *Local::now().offset());
         let end = match end {
             Some(x) => {
-                Some(NaiveDateTime::parse_from_str(&x, TIMEFORMAT).map_err(Error::BadEnd)?)
+                let naiveend =
+                    NaiveDateTime::parse_from_str(&x, TIMEFORMAT).map_err(Error::BadEnd)?;
+                let LocalResult::Single(end) = Local.from_local_datetime(&naiveend) else {
+                    return Err(Error::Ambiguous);
+                };
+                Some(end)
             }
 
             None => None,
         };
+        println!("{start}");
         Ok(Event {
             creator: creator.clone(),
             title,
@@ -83,13 +98,13 @@ impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "# {}\n## {}\n**Starts**: {:?}\n{}\n**Location**: {} {}\n**Members** ({}): {}",
+            "# {}\n## {}\n**Starts**: <t:{}:R>\n{}\n**Location**: {} {}\n**Members** ({}): {}",
             self.title,
             self.description,
-            self.start,
+            self.start.to_utc().timestamp(),
             match self.end {
                 None => "".to_string(),
-                Some(x) => format!("**Ends**: {}", x),
+                Some(x) => format!("**Ends**: <t:{}:R>", x.to_utc().timestamp()),
             },
             self.location,
             if let Some(x) = &self.host {

@@ -1,5 +1,5 @@
-use ::serenity::all::RoleId;
-use chrono::NaiveDateTime;
+use ::serenity::all::{Mentionable, RoleId};
+use chrono::DateTime;
 use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +23,30 @@ struct Data {
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
+
+#[poise::command(slash_command, prefix_command, owners_only)]
+async fn set_notify_role(ctx: Context<'_>, role: Option<serenity::Role>) -> Result<(), Error> {
+    if let Ok(mut x) = ctx.data().settings.lock() {
+        x.notify_role = role.map(|x| x.id);
+        let mut writer = BufWriter::new(
+            OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open("settings.json")
+                .unwrap(),
+        );
+        serde_json::to_writer_pretty(&mut writer, &*x).unwrap();
+        writer.flush().unwrap();
+    }
+
+    ctx.send(
+        poise::CreateReply::default()
+            .content("Success!")
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
 
 #[poise::command(slash_command, prefix_command, owners_only)]
 async fn set_trusted_role(ctx: Context<'_>, role: Option<serenity::Role>) -> Result<(), Error> {
@@ -118,11 +142,17 @@ async fn create(
             match x {
                 event::Error::BadStart(x) => drop(ctx.reply(format!("Bad start: {x}")).await?),
                 event::Error::BadEnd(x) => drop(ctx.reply(format!("Bad end: {x}")).await?),
+                event::Error::Ambiguous => drop(ctx.reply("Time was ambiguous".to_string()).await?),
             };
             return Ok(());
         }
     };
-    let response = format!("{}", event);
+    let mut response = format!("{}", event);
+    if let Ok(x) = ctx.data().settings.lock() {
+        if let Some(x) = x.notify_role {
+            response = format!("{response}\n{}", x.mention());
+        }
+    }
     let failed;
     if let Ok(mut lock) = ctx.data().event.lock() {
         *lock = Some(event);
@@ -162,13 +192,13 @@ async fn update(
                 i.description = description.clone();
             }
             if let Some(ref start) = start {
-                i.start = NaiveDateTime::parse_from_str(start, TIMEFORMAT)?;
+                i.start = DateTime::parse_from_str(start, TIMEFORMAT)?.into();
             }
             if let Some(ref end) = end {
                 if end == "None" {
                     i.end = None
                 } else {
-                    i.end = Some(NaiveDateTime::parse_from_str(end, TIMEFORMAT)?);
+                    i.end = Some(DateTime::parse_from_str(end, TIMEFORMAT)?.into());
                 }
             }
             if let Some(ref location) = location {
@@ -346,6 +376,7 @@ async fn main() -> Result<(), Error> {
                 update(),
                 cancel(),
                 set_trusted_role(),
+                set_notify_role(),
             ],
             ..Default::default()
         })
@@ -370,4 +401,5 @@ async fn main() -> Result<(), Error> {
 #[derive(Deserialize, Serialize)]
 struct Settings {
     trusted_role: Option<RoleId>,
+    notify_role: Option<RoleId>,
 }
