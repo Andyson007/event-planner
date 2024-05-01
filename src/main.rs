@@ -150,7 +150,7 @@ async fn create(
     let mut response = format!("{}", event);
     if let Ok(x) = ctx.data().settings.lock() {
         if let Some(x) = x.notify_role {
-            response = format!("{response}\n{}", x.mention());
+            response = format!("{response}\nMention:\n{}", x.mention());
         }
     }
     let failed;
