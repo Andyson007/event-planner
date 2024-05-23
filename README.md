@@ -15,4 +15,5 @@ It uses the system timezone for now so you will have to set it to match your loc
 I haven't bothered implementing special cases for times when we swap between summertime and wintertime because It's a massive pain, with little to no payback. If you are using this bot, just don't plan events for ~3 AM during this swap :)
 
 ## Plans for the future
--[ ] Implement better time parsing
+- [ ] Implement better time parsing
+- [ ] Make it have separate data between servers

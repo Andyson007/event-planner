@@ -234,11 +234,26 @@ async fn info(ctx: Context<'_>) -> Result<(), Error> {
     })
     .clone();
     if let Some(x) = lock {
-        let a = ctx.say("tmp").await?;
-        a.edit(ctx, poise::CreateReply::default().content(format!("{}", x)))
-            .await?;
+        // let a = ctx
+        //     .send(
+        //         poise::CreateReply::default()
+        //             .content("You aren't priviliged")
+        //             .ephemeral(true),
+        //     )
+        //     .await?;
+        ctx.send(
+            poise::CreateReply::default()
+                .content(format!("{}", x))
+                .ephemeral(true),
+        )
+        .await?;
     } else {
-        ctx.reply("No event".to_string()).await?;
+        ctx.send(
+            poise::CreateReply::default()
+                .content("No event :(")
+                .ephemeral(true),
+        )
+        .await?;
     }
     Ok(())
 }
