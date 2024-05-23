@@ -1,5 +1,5 @@
 use ::serenity::all::{Mentionable, RoleId};
-use chrono::DateTime;
+use chrono::{offset::LocalResult, DateTime, Local, NaiveDateTime, TimeZone};
 use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};
 
@@ -173,8 +173,8 @@ async fn update(
     ctx: Context<'_>,
     #[description = "A title for the event"] title: Option<String>,
     #[description = "A description for the event"] description: Option<String>,
-    #[description = "Format: ISO 8601"] start: Option<String>,
-    #[description = "Format: ISO 8601 (type None to remove)"] end: Option<String>,
+    #[description = "YYYY-MM-dd HH:mm"] start: Option<String>,
+    #[description = "YYYY-MM-dd HH:mm"] end: Option<String>,
     #[description = "The location where everyone should meet at"] location: Option<String>,
     #[description = "You can remove by setting removehost "] host: Option<serenity::User>,
     #[description = "This removes the host"] removehost: Option<bool>,
@@ -192,7 +192,12 @@ async fn update(
                 i.description = description.clone();
             }
             if let Some(ref start) = start {
-                i.start = DateTime::parse_from_str(start, TIMEFORMAT)?.into();
+                let naivestart = NaiveDateTime::parse_from_str(&start, TIMEFORMAT)
+                    .map_err(event::Error::BadStart)?;
+                let LocalResult::Single(start) = Local.from_local_datetime(&naivestart) else {
+                    return Err(Box::new(event::Error::Ambiguous));
+                };
+                i.start = start
             }
             if let Some(ref end) = end {
                 if end == "None" {
@@ -221,7 +226,12 @@ async fn update(
         a.edit(ctx, poise::CreateReply::default().content(format!("{}", x)))
             .await?;
     } else {
-        ctx.reply("No event".to_string()).await?;
+        ctx.send(
+            poise::CreateReply::default()
+                .content("No event")
+                .ephemeral(true),
+        )
+        .await?;
     }
     Ok(())
 }

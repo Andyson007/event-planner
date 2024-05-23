@@ -28,6 +28,28 @@ pub enum Error {
     Ambiguous,
 }
 
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "err")
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        "description() is deprecated; use Display"
+    }
+
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        None
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {}
+}
+
 impl Event {
     pub fn new(
         title: String,
