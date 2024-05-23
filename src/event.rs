@@ -47,7 +47,7 @@ impl std::error::Error for Error {
         None
     }
 
-    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {}
+    // fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {}
 }
 
 impl Event {
