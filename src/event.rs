@@ -124,6 +124,7 @@ impl Display for Event {
             self.title,
             self.description,
             self.start.to_utc().timestamp(),
+            self.start.to_utc().timestamp(),
             match self.end {
                 None => "".to_string(),
                 Some(x) => format!(
