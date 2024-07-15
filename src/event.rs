@@ -19,7 +19,7 @@ pub struct Event {
 }
 
 // This hould really have start, end
-// with each of them having fields from a 
+// with each of them having fields from a
 // different enum
 #[derive(Debug)]
 pub enum Error {
@@ -120,13 +120,17 @@ impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "# {}\n## {}\n**Starts**: <t:{}:R>\n{}\n**Location**: {} {}\n**Members** ({}): {}",
+            "# {}\n## {}\n**Starts**: <t:{}:R> (<t:{}:F>)\n{}\n**Location**: {} {}\n**Members** ({}): {}",
             self.title,
             self.description,
             self.start.to_utc().timestamp(),
             match self.end {
                 None => "".to_string(),
-                Some(x) => format!("**Ends**: <t:{}:R>", x.to_utc().timestamp()),
+                Some(x) => format!(
+                    "**Ends**: <t:{}:R> (<t:{}:F>)",
+                    x.to_utc().timestamp(),
+                    x.to_utc().timestamp()
+                ),
             },
             self.location,
             if let Some(x) = &self.host {
